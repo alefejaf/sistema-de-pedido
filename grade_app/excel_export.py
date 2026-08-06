@@ -108,83 +108,27 @@ def _formatar_nota_final(ws, df: pd.DataFrame, workbook) -> None:
 
 
 def gerar_excel_nota_final(nota_final: pd.DataFrame, base: pd.DataFrame, total_pedido_dia: float = 0.0, cliente_nome: str = "") -> bytes:
-    """Gera um Excel limpo somente com a NOTA FINAL para digitação do pedido."""
+    """Gera um Excel limpo somente com a NOTA FINAL para digitação do pedido.
+
+    Layout igual ao da NOTA_FINAL do Excel completo (linha 1 = contagem de
+    itens por loja + total do pedido, linha 2 = cabeçalhos, produtos a partir
+    da linha 3), reaproveitando `_formatar_nota_final` para as duas
+    exportações ficarem sempre consistentes. `total_pedido_dia` e
+    `cliente_nome` não são mais usados aqui (o total agora é uma fórmula na
+    própria planilha e não há mais título mesclado), mas seguem no parâmetro
+    para não mudar a assinatura chamada pelo resto do sistema.
+    """
     output = io.BytesIO()
     df = nota_final.copy()
     if "TOTAL" in df.columns:
         df = df[df["TOTAL"].fillna(0).astype(float).gt(0)].reset_index(drop=True)
 
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="NOTA_FINAL", index=False, startrow=2)
+        df.to_excel(writer, sheet_name="NOTA_FINAL", index=False, startrow=1)
         workbook = writer.book
         ws = writer.sheets["NOTA_FINAL"]
 
-        fmt_title = workbook.add_format({"bold": True, "font_size": 16, "font_color": "white", "bg_color": "#1F4E78", "align": "center", "valign": "vcenter"})
-        fmt_header = workbook.add_format({"bold": True, "font_color": "white", "bg_color": "#1F4E78", "border": 1, "align": "center", "valign": "vcenter"})
-        fmt_text = workbook.add_format({"border": 1, "valign": "vcenter"})
-        fmt_qty = workbook.add_format({"num_format": "#,##0.00", "border": 1, "align": "center", "valign": "vcenter"})
-        fmt_total = workbook.add_format({"num_format": "#,##0.00", "border": 1, "bold": True, "bg_color": "#D9EAD3", "align": "center"})
-        fmt_money = workbook.add_format({"num_format": "R$ #,##0.00", "border": 1, "bold": True, "bg_color": "#FFF2CC", "align": "center"})
-
-        last_col = max(len(df.columns) - 1, 0)
-        titulo = f"NOTA FINAL - GRADE {cliente_nome}" if cliente_nome else "NOTA FINAL - GRADE"
-        ws.merge_range(0, 0, 0, last_col, titulo, fmt_title)
-        ws.write(1, 0, "Use esta aba para digitar/conferir o pedido: produto, quantidade por loja, total e preço.")
-
-        # Localiza colunas de TOTAL e PREÇO para aplicar fórmulas
-        total_col_idx = df.columns.get_loc("TOTAL") if "TOTAL" in df.columns else None
-        preco_col_idx = df.columns.get_loc("PREÇO") if "PREÇO" in df.columns else None
-
-        # Aplica a fórmula SOMA na coluna TOTAL para recálculos automáticos
-        if total_col_idx is not None and len(df) > 0:
-            last_store_col_idx = total_col_idx - 1
-            start_letter = xl_col_to_name(1)  # coluna B
-            end_letter = xl_col_to_name(last_store_col_idx)
-            for i in range(len(df)):
-                r_excel = i + 4  # dados começam na linha 4 física
-                formula = f"=SUM({start_letter}{r_excel}:{end_letter}{r_excel})"
-                ws.write_formula(i + 3, total_col_idx, formula, fmt_total)
-
-        # TOTAL DO PEDIDO DO DIA via SUMPRODUCT
-        if total_col_idx is not None and preco_col_idx is not None and len(df) > 0:
-            total_letter = xl_col_to_name(total_col_idx)
-            preco_letter = xl_col_to_name(preco_col_idx)
-            ws.write(1, max(last_col - 1, 0), "TOTAL DO PEDIDO DO DIA")
-            formula_total = f"=SUMPRODUCT({total_letter}4:{total_letter}{len(df) + 3}, {preco_letter}4:{preco_letter}{len(df) + 3})"
-            ws.write_formula(1, last_col, formula_total, fmt_money)
-        elif total_pedido_dia:
-            ws.write(1, max(last_col - 1, 0), "TOTAL DO PEDIDO DO DIA")
-            ws.write(1, last_col, total_pedido_dia, fmt_money)
-
-        ws.freeze_panes(3, 1)
-        ws.autofilter(2, 0, max(len(df) + 2, 3), last_col)
-        ws.set_row(0, 26)
-        ws.set_row(2, 24)
-
-        for col_idx, col_name in enumerate(df.columns):
-            ws.write(2, col_idx, col_name, fmt_header)
-            if col_name == "Produto":
-                ws.set_column(col_idx, col_idx, 34, fmt_text)
-            elif col_name == "PREÇO":
-                ws.set_column(col_idx, col_idx, 13, fmt_money)
-            elif col_name == "TOTAL":
-                ws.set_column(col_idx, col_idx, 12, fmt_total)
-            else:
-                ws.set_column(col_idx, col_idx, 10, fmt_qty)
-
-        # Reaplica formatos por área para deixar a nota pronta para uso.
-        if len(df) > 0:
-            for row in range(3, len(df) + 3):
-                ws.set_row(row, 20)
-            produto_col = 0
-            ws.set_column(produto_col, produto_col, 34, fmt_text)
-            for col_idx, col_name in enumerate(df.columns):
-                if col_name == "PREÇO":
-                    ws.set_column(col_idx, col_idx, 13, fmt_money)
-                elif col_name == "TOTAL":
-                    ws.set_column(col_idx, col_idx, 12, fmt_total)
-                elif col_name != "Produto":
-                    ws.set_column(col_idx, col_idx, 10, fmt_qty)
+        _formatar_nota_final(ws, df, workbook)
 
         # Cria as abas de cada loja
         adicionar_abas_lojas(writer, base, workbook)
