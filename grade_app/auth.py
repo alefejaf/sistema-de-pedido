@@ -90,7 +90,8 @@ def _carregar_usuarios() -> Optional[Dict[str, dict]]:
     inacessível (Sheets fora do ar, secrets ausentes, sem permissão etc.)."""
     try:
         registros = google_sheets.carregar_usuarios()
-    except Exception:
+    except Exception as exc:
+        print(f"[auth] Falha ao conectar na planilha de usuarios: {type(exc).__name__}: {exc}")
         return None
     usuarios = {}
     for linha in registros:
