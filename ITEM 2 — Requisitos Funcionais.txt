@@ -1,0 +1,53 @@
+Módulo: Pessoas
+1. O sistema deve permitir cadastrar pessoas com nome, setor e tipo de acesso (comum/master)
+2. O sistema deve permitir editar e excluir/inativar pessoas cadastradas
+3. Apenas usuários master podem cadastrar, editar ou excluir/inativar pessoas
+4. Não deve haver limite fixo de quantidade de pessoas cadastradas
+
+Módulo: Carros
+5. O sistema deve permitir cadastrar carros com nome, placa e km atual
+6. O sistema deve permitir editar e excluir/inativar carros cadastrados
+7. Apenas usuários master podem cadastrar, editar ou excluir/inativar carros
+8. Não deve haver limite fixo de quantidade de carros cadastrados
+9. O sistema deve exibir o status atual de cada carro (livre, em uso, reservado, manutenção)
+
+Módulo: Reservas
+10. O sistema deve permitir criar uma reserva escolhendo carro, data/hora prevista e responsável
+11. O sistema deve impedir reservas conflitantes para o mesmo carro no mesmo horário
+12. O sistema deve permitir cancelar reservas ainda não iniciadas
+13. Apenas usuários master podem alterar/corrigir reservas já criadas
+14. Toda alteração feita por um master deve gerar um registro em log (quem, o quê, quando)
+
+Módulo: Retirada e Devolução
+15. O sistema deve permitir registrar a retirada do carro com km e horário real
+16. O sistema deve permitir registrar a devolução do carro com km e horário real
+17. O sistema deve atualizar o km atual do carro automaticamente após a devolução
+18. O sistema deve marcar a reserva como "atrasado" se o horário real de devolução ultrapassar o previsto
+
+Módulo: Alertas
+19. O sistema deve exibir alerta visual no painel quando um carro não retornar no horário previsto
+20. O sistema deve exibir lembrete de lavagem agendada para o dia corrente
+
+Módulo: Agenda de Lavagem
+21. O sistema deve permitir agendar lavagem por carro e data
+22. O sistema deve permitir marcar lavagem como concluída ou cancelada
+
+Módulo: Histórico de Uso
+23. O sistema deve permitir consultar o histórico de uso filtrando por carro, pessoa ou período
+
+Módulo: Multas/Ocorrências
+24. O sistema deve permitir registrar uma multa/ocorrência com carro, data da infração e valor
+25. O sistema deve vincular automaticamente a multa à reserva/registro de uso correspondente à data/hora da infração, identificando o responsável
+26. O sistema deve permitir consultar multas por carro, pessoa ou período
+
+Módulo: Dashboard
+27. O sistema deve exibir na tela inicial o status dos 4+ carros em tempo real
+28. O sistema deve exibir quem está com cada carro no momento e desde que horário
+29. O sistema deve exibir as próximas reservas do dia
+30. O sistema deve exibir alertas de atraso na tela inicial
+31. O sistema deve exibir o km atual de cada carro na tela inicial
+
+Módulo: Acesso
+32. O sistema deve autenticar usuários por e-mail e senha
+33. O sistema deve diferenciar permissões entre usuário comum e usuário master
+34. O sistema deve funcionar como PWA, instalável em celular

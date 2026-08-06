@@ -1,0 +1,64 @@
+tabela: pessoas
+  - id: uuid, PK, default gen_random_uuid()
+  - nome: text, obrigatório
+  - setor: text, opcional
+  - tipo_acesso: text, obrigatório -- valores: 'comum' | 'master'
+  - senha_master: text, opcional -- hash, só preenchido se tipo_acesso = 'master'
+  - ativo: boolean, default true
+  - criado_em: timestamptz, default now()
+
+tabela: carros
+  - id: uuid, PK, default gen_random_uuid()
+  - nome: text, obrigatório -- ex: "Carro 1 - Placa ABC1D23"
+  - placa: text, obrigatório, unique
+  - km_atual: integer, default 0
+  - status: text, default 'livre' -- valores: 'livre' | 'em_uso' | 'reservado' | 'manutencao'
+  - ativo: boolean, default true
+  - criado_em: timestamptz, default now()
+
+tabela: reservas
+  - id: uuid, PK, default gen_random_uuid()
+  - carro_id: uuid, FK → carros.id, obrigatório
+  - pessoa_id: uuid, FK → pessoas.id, obrigatório
+  - data_hora_inicio_prevista: timestamptz, obrigatório
+  - data_hora_fim_prevista: timestamptz, obrigatório
+  - status: text, default 'reservado' -- valores: 'reservado' | 'em_uso' | 'concluido' | 'cancelado' | 'atrasado'
+  - criado_em: timestamptz, default now()
+  - alterado_por: uuid, FK → pessoas.id, opcional -- preenchido se um master editar a reserva
+  - alterado_em: timestamptz, opcional
+
+tabela: registros_uso
+  - id: uuid, PK, default gen_random_uuid()
+  - reserva_id: uuid, FK → reservas.id, obrigatório
+  - km_retirada: integer, obrigatório
+  - km_devolucao: integer, opcional
+  - horario_retirada_real: timestamptz, obrigatório
+  - horario_devolucao_real: timestamptz, opcional
+  - criado_em: timestamptz, default now()
+
+tabela: agenda_lavagem
+  - id: uuid, PK, default gen_random_uuid()
+  - carro_id: uuid, FK → carros.id, obrigatório
+  - data_agendada: date, obrigatório
+  - status: text, default 'agendado' -- valores: 'agendado' | 'concluido' | 'cancelado'
+  - criado_em: timestamptz, default now()
+
+tabela: multas_ocorrencias
+  - id: uuid, PK, default gen_random_uuid()
+  - carro_id: uuid, FK → carros.id, obrigatório
+  - reserva_id: uuid, FK → reservas.id, opcional -- vínculo automático por data/hora da infração
+  - data_infracao: timestamptz, obrigatório
+  - valor: numeric(10,2), obrigatório
+  - descricao: text, opcional
+  - pessoa_responsavel_id: uuid, FK → pessoas.id, opcional -- derivado da reserva vinculada
+  - criado_em: timestamptz, default now()
+
+tabela: log_alteracoes
+  - id: uuid, PK, default gen_random_uuid()
+  - pessoa_id: uuid, FK → pessoas.id, obrigatório -- quem alterou (sempre um master)
+  - tabela_afetada: text, obrigatório
+  - registro_id: uuid, obrigatório
+  - campo_alterado: text, obrigatório
+  - valor_anterior: text, opcional
+  - valor_novo: text, opcional
+  - data_hora: timestamptz, default now()

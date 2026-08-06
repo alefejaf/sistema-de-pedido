@@ -1,0 +1,37 @@
+# Segredos - nunca commitar credenciais reais
+.streamlit/secrets.toml
+*.json
+.env
+.env.*
+
+# Permitir arquivos de exemplo/config sem credenciais reais
+!.streamlit/secrets.toml.example
+!.devcontainer/devcontainer.json
+
+# Log de acesso/dados de runtime
+logs/
+*.log
+
+# Backups automáticos de configs/ (dado de runtime, não faz parte do código)
+backups_config/
+
+# Ambiente Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cache Streamlit / Python
+.streamlit/cache/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# Sistema operacional
+.DS_Store
+Thumbs.db

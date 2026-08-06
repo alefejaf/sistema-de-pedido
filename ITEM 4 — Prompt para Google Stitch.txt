@@ -1,0 +1,67 @@
+Crie os protótipos de tela do sistema "ReservaFrota" — um painel de agendamento
+e controle de uso de frota de veículos, usado pela equipe comercial de uma
+distribuidora atacadista (representantes e consultores de vendas em campo).
+
+Usuário final: equipe comercial com baixo/médio nível técnico, acessando
+principalmente pelo celular (sistema é PWA). Um grupo restrito de usuários
+"master" tem uma tela adicional de edição/correção com mais responsabilidade.
+
+## Telas a prototipar
+
+1. Dashboard (tela inicial)
+   - Cards com status de cada carro (livre / em uso / reservado / manutenção)
+   - Para carros em uso: quem está com o carro e desde que horário
+   - Lista das próximas reservas do dia (carro, responsável, horário previsto)
+   - Bloco de alertas de atraso (carro que devia ter voltado e não voltou)
+   - Km atual de cada carro
+   - Botão de destaque "Nova Reserva"
+
+2. Nova Reserva
+   - Seleção de carro (com indicação visual de disponibilidade)
+   - Seleção de data e horário previsto de início e fim
+   - Seleção do responsável (busca por nome)
+   - Botão de confirmar reserva
+
+3. Registro de Retirada/Devolução
+   - Tela simples acessada a partir de uma reserva ativa
+   - Campo de km na retirada e na devolução
+   - Botão "Registrar Retirada" / "Registrar Devolução"
+   - Horário real preenchido automaticamente
+
+4. Agenda de Lavagem
+   - Lista/calendário de lavagens agendadas por carro
+   - Botão para agendar nova lavagem
+   - Marcar como concluída ou cancelada
+
+5. Histórico de Uso
+   - Filtros por carro, pessoa e período
+   - Tabela com data, carro, responsável, km rodado, horário de retirada e devolução
+
+6. Multas/Ocorrências
+   - Lista de multas registradas com data, carro, valor e responsável identificado
+   - Formulário para registrar nova multa (carro, data da infração, valor, descrição)
+   - Filtros por carro, pessoa ou período
+
+7. Cadastro
+   - Aba Carros: lista com nome, placa, km atual, status ativo/inativo; botão adicionar/editar/excluir
+   - Aba Pessoas: lista com nome, setor, tipo de acesso; botão adicionar/editar/excluir
+
+8. Painel de Alteração (restrito a masters)
+   - Lista de reservas existentes com opção de editar campos
+   - Ao editar, exibir aviso "esta alteração será registrada em log"
+   - Seção de log de alterações: quem alterou, o que alterou, quando
+
+## Design System
+- Cor primária: #1E5631 (verde escuro, remetendo a operação/logística)
+- Cor de fundo: #F7F8F5
+- Cor de superfície (cards): #FFFFFF
+- Cor de texto principal: #1A1A1A
+- Cor de destaque/ação: #2F8F4E (verde para ações positivas), #D64545 (vermelho para alertas/atraso)
+- Tipografia: Inter — H1 24px bold, H2 18px semibold, corpo 14px regular, label 12px medium
+- Tom visual: minimalista, cards com sombra suave, bordas arredondadas (8px),
+  espaçamento generoso, compatível com componentes shadcn/ui
+
+## Instrução final para o Stitch
+Gere todas as telas de forma navegável e coerente entre si, respeitando o
+design system definido. Os componentes devem ser consistentes entre telas.
+Use o design system como base para todos os elementos visuais.

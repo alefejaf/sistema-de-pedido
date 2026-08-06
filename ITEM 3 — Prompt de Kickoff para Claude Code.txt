@@ -1,0 +1,41 @@
+Você é um desenvolvedor senior. Implemente o sistema ReservaFrota do zero.
+Stack: Next.js 14 App Router + Tailwind + Supabase. O sistema deve funcionar
+como PWA (instalável em celular, com manifest e service worker básico).
+Não me explique — apenas implemente.
+
+## Sistema
+ReservaFrota é um painel de agendamento e controle de uso de frota de veículos
+para uma equipe comercial. Resolve o problema de falta de rastreabilidade:
+antes o controle era feito em papel e a chave ficava pendurada sem registro
+confiável. Agora, toda reserva, retirada e devolução de carro fica registrada
+com responsável, horário e km, permitindo identificar rapidamente quem estava
+com o carro em caso de multa.
+
+Usuários:
+- Comum: reserva carros, registra retirada/devolução, consulta status e histórico.
+- Master (poucos usuários definidos no cadastro): além disso, edita/corrige
+  reservas e gerencia cadastro de carros e pessoas. Toda alteração feita por
+  um master gera log (quem, o quê, quando).
+
+## Banco de Dados (Supabase)
+-- colar aqui o schema SQL completo do Item 1 --
+
+## Requisitos Funcionais
+-- colar aqui a lista completa do Item 2 --
+
+## Configuração Supabase
+- Auth: email + senha
+- RLS: leitura liberada para autenticados; escrita/edição de reservas, carros
+  e pessoas restrita a usuários com tipo_acesso = 'master' (validar via policy
+  consultando a tabela pessoas do usuário autenticado)
+- Trigger de banco para popular log_alteracoes automaticamente em updates
+  nas tabelas reservas, carros e pessoas feitos por masters
+- Edge function (opcional) para verificar reservas atrasadas periodicamente
+  e atualizar status para 'atrasado'
+
+## Estrutura de pastas
+/app + /components + /lib/supabase.ts + /types + /public/manifest.json
+
+Comece pelo setup: criar projeto Next.js, instalar dependências, configurar
+o cliente Supabase, o manifest do PWA e as tabelas do banco.
+Implemente os componentes visuais fiéis ao protótipo gerado no Google Stitch.
