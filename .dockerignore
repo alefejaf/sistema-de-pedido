@@ -1,0 +1,37 @@
+# Controle de versao / editor / SO
+.git
+.gitignore
+.github
+.devcontainer
+.vscode
+.idea
+.claude
+.DS_Store
+Thumbs.db
+
+# Segredos - nunca devem entrar na imagem
+.streamlit/secrets.toml
+.env
+.env.*
+*.json
+
+# Ambiente Python local
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Dados de runtime que devem vir de volume, nao da imagem
+backups_config/
+logs/
+*.log
+
+# Documentacao e material auxiliar (nao usados em runtime)
+README.md
+COMO_IMPLANTAR.md
+DEPLOY_TRUENAS.md
+ITEM*.txt
+scripts/
