@@ -1,4 +1,4 @@
-name: Publicar imagem Docker
+name: Publicar imagem Docker e Deploy TrueNAS
 
 on:
   push:
@@ -36,3 +36,26 @@ jobs:
           tags: |
             ghcr.io/alefejaf/sistema-de-pedido:latest
             ghcr.io/alefejaf/sistema-de-pedido:${{ github.sha }}
+
+      - name: Instalar Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          ping: 100.74.190.91
+
+      - name: Configurar chave SSH
+        shell: bash
+        env:
+          TRUENAS_SSH_KEY: ${{ secrets.TRUENAS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TRUENAS_SSH_KEY" > ~/.ssh/truenas_key
+          chmod 600 ~/.ssh/truenas_key
+
+      - name: Deploy no TrueNAS
+        shell: bash
+        run: |
+          ssh -o StrictHostKeyChecking=no \
+              -i ~/.ssh/truenas_key \
+              truenas_admin@100.74.190.91 \
+              "sudo -n /usr/bin/midclt call app.redeploy sistema-de-pedido"
