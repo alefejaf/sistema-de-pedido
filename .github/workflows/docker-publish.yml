@@ -58,4 +58,5 @@ jobs:
           ssh -o StrictHostKeyChecking=no \
               -i ~/.ssh/truenas_key \
               truenas_admin@100.74.190.91 \
-              "sudo -n /usr/bin/midclt call app.redeploy sistema-de-pedido"
+              "sudo -n /usr/bin/midclt call app.pull_images sistema-de-pedido"
+
