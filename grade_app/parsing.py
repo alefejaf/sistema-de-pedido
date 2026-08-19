@@ -16,7 +16,7 @@ LINHA_PRODUTO_RE = re.compile(
     rf"(?:(?P<valor_item_repetido>{NUMERO_BR_RE})\s*)?"
     rf"(?P<preco_unitario>{PRECO_4_RE})\s*"
     rf"(?P<quantidade>\d{{1,6}}(?:\.\d{{3}})*,\d{{2}})\s*"
-    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*1\s*(?P<produto>.+)$",
+    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*\d{{1,3}}\s*(?P<produto>.+)$",
     flags=re.I,
 )
 
@@ -26,7 +26,7 @@ LINHA_PRODUTO_SEM_COD_RE = re.compile(
     rf"(?:(?P<valor_item_repetido>{NUMERO_BR_RE})\s*)?"
     rf"(?P<preco_unitario>{PRECO_4_RE})\s*"
     rf"(?P<quantidade>\d{{1,6}}(?:\.\d{{3}})*,\d{{2}})\s*"
-    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*1\s*(?P<produto>.+)$",
+    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*\d{{1,3}}\s*(?P<produto>.+)$",
     flags=re.I,
 )
 
@@ -36,7 +36,7 @@ LINHA_PRODUTO_VISUAL_RE = re.compile(
     rf"^(?:(?P<cod_forn>\d+\[\d+\])\s+)?"
     rf"(?P<codigo_item_loja>\d{{3,8}})\s+"
     rf"(?P<produto>.+?)\s+"
-    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*1\s+"
+    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*\d{{1,3}}\s+"
     rf"(?P<quantidade>{NUMERO_BR_RE})\s+"
     rf"(?P<preco_unitario>{PRECO_4_RE})\s+"
     rf"(?P<valor_item>{NUMERO_BR_RE})"
@@ -52,7 +52,7 @@ LINHA_PRODUTO_HORIZONTAL_RE = re.compile(
     rf"^(?P<cod_forn>(?:\d+\[\d+\]|\d{{3,8}}))\s+"
     rf"(?P<qtd_canc>{NUMERO_BR_RE})\s+"
     rf"(?P<produto>.+?)\s+"
-    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*1\s+"
+    rf"(?P<embalagem>UN|UND|KG|CX|FD)\s*\d{{1,3}}\s+"
     rf"(?P<quantidade>{NUMERO_BR_RE})\s+"
     rf"(?P<preco_unitario>{PRECO_4_RE})\s+"
     rf"(?P<valor_item>{NUMERO_BR_RE})\s+"
@@ -282,7 +282,7 @@ def extrair_linhas_produtos(bloco: str) -> List[Dict]:
             continue
         if "TOTAIS" in linha_upper or "VALOR TOTAL DO PEDIDO" in linha_upper:
             continue
-        if not re.search(r"(UN|UND|KG|CX|FD)\s*1", linha_limpa, flags=re.I):
+        if not re.search(r"(UN|UND|KG|CX|FD)\s*\d{1,3}", linha_limpa, flags=re.I):
             continue
 
         # Layout visual esquerda->direita, inclusive item sem Cod Forn/Seq, ex.:
@@ -313,7 +313,7 @@ def extrair_linhas_produtos(bloco: str) -> List[Dict]:
 
     # 2) Tentativa para o layout quebrado em várias linhas.
     seq_re = re.compile(r"^(?P<seq>\d+)\[(?P<cod>\d+)\]$")
-    unidade_re = re.compile(r"^(?P<emb>UN|UND|KG|CX|FD)\s*1$", flags=re.I)
+    unidade_re = re.compile(r"^(?P<emb>UN|UND|KG|CX|FD)\s*\d{1,3}$", flags=re.I)
 
     i = 0
     while i <= len(linhas) - 7:
@@ -431,15 +431,15 @@ def contar_indicios_produtos(texto: str) -> int:
     """
     if not texto:
         return 0
-    padrao_com_codigo = re.compile(r"\[\d{3,}\].{0,120}(?:UN|UND|KG|CX|FD)\s*1", flags=re.I | re.S)
-    padrao_sem_codigo = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*\d{1,5},\d{4}\s*\d{1,6}(?:\.\d{3})*,\d{2}\s*(?:UN|UND|KG|CX|FD)\s*1", flags=re.I | re.S)
+    padrao_com_codigo = re.compile(r"\[\d{3,}\].{0,120}(?:UN|UND|KG|CX|FD)\s*\d{1,3}", flags=re.I | re.S)
+    padrao_sem_codigo = re.compile(r"\d{1,3}(?:\.\d{3})*,\d{2}\s*\d{1,5},\d{4}\s*\d{1,6}(?:\.\d{3})*,\d{2}\s*(?:UN|UND|KG|CX|FD)\s*\d{1,3}", flags=re.I | re.S)
 
     score_linha_unica = len(padrao_com_codigo.findall(texto)) + len(padrao_sem_codigo.findall(texto))
 
     linhas = [re.sub(r"\s+", " ", l.strip()) for l in texto.splitlines() if l.strip()]
     score_multilinha = 0
     seq_re = re.compile(r"^\d+\[\d+\]$")
-    unidade_re = re.compile(r"^(?:UN|UND|KG|CX|FD)\s*1$", flags=re.I)
+    unidade_re = re.compile(r"^(?:UN|UND|KG|CX|FD)\s*\d{1,3}$", flags=re.I)
     for i in range(len(linhas) - 6):
         janela = linhas[i:i+7]
         if (re.fullmatch(NUMERO_BR_RE, janela[0]) and
@@ -484,7 +484,7 @@ def contar_itens_indicios_bloco(bloco: str) -> int:
     qtd_seq = sum(1 for l in linhas if re.fullmatch(r"\d+\[\d+\]", l))
     qtd_eans = sum(1 for l in linhas if l.upper().startswith("EANS:"))
 
-    unidade_re = re.compile(r"^(?:UN|UND|KG|CX|FD)\s*1$", flags=re.I)
+    unidade_re = re.compile(r"^(?:UN|UND|KG|CX|FD)\s*\d{1,3}$", flags=re.I)
     produto_sem_seq = 0
 
     # Padrão quebrado sem Cod Forn/Seq:
@@ -506,7 +506,7 @@ def contar_itens_indicios_bloco(bloco: str) -> int:
     # 7966 PINHA KG KG 1 6,00 16,2000 97,20 97,20
     numero = NUMERO_BR_RE
     linha_visual_re = re.compile(
-        rf"^(?:\d+\[\d+\]\s+)?\d{{3,8}}\s+.+?\s+(?:UN|UND|KG|CX|FD)\s*1\s+{numero}\s+{PRECO_4_RE}\s+{numero}",
+        rf"^(?:\d+\[\d+\]\s+)?\d{{3,8}}\s+.+?\s+(?:UN|UND|KG|CX|FD)\s*\d{{1,3}}\s+{numero}\s+{PRECO_4_RE}\s+{numero}",
         flags=re.I,
     )
     qtd_linha_visual = sum(1 for l in linhas if linha_visual_re.search(l))
