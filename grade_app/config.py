@@ -50,6 +50,13 @@ CLIENTES = {
         "descricao": "Use esta página para o cliente Fort. Cadastre aqui o DE/PARA próprio de lojas e produtos.",
         "grade_cols": ["F66-VALP", "F75-CEI", "F87-PLAN", "F138-TAG", "F175-CEI", "F775-REC"],
     },
+    "eurocompany": {
+        "nome": "EURO COMPANY",
+        "icone": "🟪",
+        "subtitulo": "Grade padrão Euro Company / TOTVS",
+        "descricao": "Use esta página para pedidos Euro Company (castanhas, amêndoas, frutas secas). Parte do mesmo cadastro de lojas do Ultrabox/Bigbox; lojas novas do pedido aparecem em Pendências para você completar.",
+        "grade_cols": GRADE_COLS_PADRAO,
+    },
 }
 
 def obter_cliente(cliente_id: str) -> Dict:
@@ -175,6 +182,61 @@ def criar_config_padrao() -> Tuple[pd.DataFrame, pd.DataFrame]:
     ], columns=["Nome do produto no PDF", "Nome oficial na grade", "Unidade"])
     return lojas, produtos
 
+def criar_produtos_padrao_eurocompany() -> pd.DataFrame:
+    """DE/PARA de produtos do cliente Euro Company (castanhas, amêndoas, frutas secas).
+
+    O fornecedor já mudou o texto do nome do produto no PDF entre lotes (ex.:
+    "AMEIXA SECA COMPANY S/CAROCO 200G" virou "AMEIXA SECA BDJ 200G COMPANY"),
+    por isso cada produto tem as duas variantes observadas apontando para o
+    mesmo nome oficial na grade - igual ao padrão já usado nos outros clientes
+    para aliases (ex.: UVA VITO / UVA VITORIA).
+    """
+    return pd.DataFrame([
+        ["AMEIXA SECA COMPANY S/CAROCO 200G", "AMEIXA SECA S/CAROCO 200G", "CX"],
+        ["AMEIXA SECA BDJ 200G COMPANY", "AMEIXA SECA S/CAROCO 200G", "CX"],
+        ["AMENDOA COMPANY CRUA 150G", "AMENDOA CRUA 150G", "CX"],
+        ["AMENDOA CRUA BDJ 150G COMPANY", "AMENDOA CRUA 150G", "CX"],
+        ["AMENDOA EUROCOMPANY TORRAD/SAL 100G", "AMENDOA TORRADA COM SAL 100G", "CX"],
+        ["AMENDOA TORRADA PT 100G EUROCOMPANY COM SAL", "AMENDOA TORRADA COM SAL 100G", "CX"],
+        ["AMENDOA LAMINADA EUROCOMPANY 100G", "AMENDOA LAMINADA 100G", "CX"],
+        ["AMEND LAMINADA 100G EUROCOMPANY", "AMENDOA LAMINADA 100G", "CX"],
+        ["AMENDOIM JAPONES COMPANY 150G NATURAL", "AMENDOIM JAPONES NATURAL 150G", "CX"],
+        ["AMENDOIM JAPONES 150G COMPANY NATURAL", "AMENDOIM JAPONES NATURAL 150G", "CX"],
+        ["AMENDOIM JAPONES COMPANY 150G CEB/SALSA", "AMENDOIM JAPONES CEBOLA E SALSA 150G", "CX"],
+        ["AMENDOIM JAPONES 150G COMPANY CEBOLA E SALSA", "AMENDOIM JAPONES CEBOLA E SALSA 150G", "CX"],
+        ["AMENDOIM JAPONES COMPANY 150G PIMENTA", "AMENDOIM JAPONES PIMENTA 150G", "CX"],
+        ["AMENDOIM JAPONES 150G COMPANY PIMENTA", "AMENDOIM JAPONES PIMENTA 150G", "CX"],
+        ["CASTANHA CAJU COMPANY TOR/SALG 100G", "CASTANHA DE CAJU TORRADA COM SAL 100G", "CX"],
+        ["CASTANHA CAJU TORRADO 100G COMPANY COM SAL", "CASTANHA DE CAJU TORRADA COM SAL 100G", "CX"],
+        ["CASTANHA DE CAJU EUROCOMPANY 100G TORRADA SEM SAL", "CASTANHA DE CAJU TORRADA SEM SAL 100G", "CX"],
+        ["CASTANHA CAJU 100G EURO COMPA TORRADA S SAL", "CASTANHA DE CAJU TORRADA SEM SAL 100G", "CX"],
+        ["CASTANHA DE CAJU EUROCOMPANY 150G TRITURADA", "CASTANHA DE CAJU TRITURADA 150G", "CX"],
+        ["CASTANHA CAJU 150G EURO COMPA TRITURADA", "CASTANHA DE CAJU TRITURADA 150G", "CX"],
+        ["CASTANHA DO PARA EUROCOMPANY 100G", "CASTANHA DO PARA 100G", "CX"],
+        ["CASTANHA DO PARA 100G EUROCOMPANY", "CASTANHA DO PARA 100G", "CX"],
+        ["DAMASCO COMPANY 100G", "DAMASCO 100G", "CX"],
+        ["DAMASCO BDJ 100G COMPANY", "DAMASCO 100G", "CX"],
+        ["FRUTAS CRISTALIZAD EUROCOMPANY 200G", "FRUTAS CRISTALIZADAS 200G", "CX"],
+        ["FRUTA CRISTALIZADA 200G EUROCOMPANY", "FRUTAS CRISTALIZADAS 200G", "CX"],
+        ["MIX DE AMENDOIM EUROCOMPANY 200G", "MIX DE AMENDOIM 200G", "CX"],
+        ["MIX FRUTAS SECAS COMPANY 150G", "MIX DE FRUTAS SECAS 150G", "CX"],
+        ["MIX DE FRUTAS SECA PT 150G COMPANY", "MIX DE FRUTAS SECAS 150G", "CX"],
+        ["NOZES COMPANY MARIPOSA 100G", "NOZES MARIPOSA 100G", "CX"],
+        ["NOZES MARIPOSA BDJ 100G COMPANY", "NOZES MARIPOSA 100G", "CX"],
+        ["PISTACHE TORRADO COMPANY 100G", "PISTACHE TORRADO 100G", "CX"],
+        ["PISTACHE TORRADO BDJ 100G COMPANY", "PISTACHE TORRADO 100G", "CX"],
+        ["UVA PASSAS COMPANY BRANCA 200G", "UVA PASSA BRANCA 200G", "CX"],
+        ["UVA PASSA BRANCA BDJ 200G COMPANY", "UVA PASSA BRANCA 200G", "CX"],
+        ["UVA PASSAS COMPANY ESCURA 200G", "UVA PASSA ESCURA 200G", "CX"],
+        ["UVA PASSA ESCURA BDJ 200G COMPANY", "UVA PASSA ESCURA 200G", "CX"],
+        ["ABACAXI NATURAL COMPANY 30G", "ABACAXI NATURAL 30G", "CX"],
+        ["MANGA NATURAL COMPANY 30G", "MANGA NATURAL 30G", "CX"],
+        ["MIX DE FRUTAS EUROCOMPANY 40G SAUDE", "MIX DE FRUTAS SAUDE 40G", "CX"],
+        ["MIX DE FRUTAS EUROCOMPANY 40G FUNCIONAL", "MIX DE FRUTAS FUNCIONAL 40G", "CX"],
+        ["MIX DE FRUTAS EUROCOMPANY 40G TROPICAL", "MIX DE FRUTAS TROPICAL 40G", "CX"],
+        ["MIX DE FRUTAS EUROCOMPANY 40G ENERGIA", "MIX DE FRUTAS ENERGIA 40G", "CX"],
+    ], columns=["Nome do produto no PDF", "Nome oficial na grade", "Unidade"])
+
 def criar_config_padrao_cliente(cliente_id: str = "ultrabox") -> Tuple[pd.DataFrame, pd.DataFrame]:
     """Cria configurações iniciais separadas por cliente.
 
@@ -223,6 +285,14 @@ def criar_config_padrao_cliente(cliente_id: str = "ultrabox") -> Tuple[pd.DataFr
             ["FORT775-RECANT-EMAS", "FORT 775 RECANTO DAS EMAS", "F775-REC", ""],
         ], columns=["Código PDF", "Nome da loja", "Coluna da grade", "Usar preço referência"])
         return lojas, produtos_base.copy()
+
+    if cid == "eurocompany":
+        # Códigos de loja (BIG.../ULT...) são os mesmos usados por Ultrabox e Big
+        # Box, pois é a mesma rede de lojas recebendo de um fornecedor diferente
+        # (Euro Company). Reaproveita o DE/PARA de lojas já cadastrado; lojas
+        # ainda não conhecidas por este cadastro aparecem em Pendências para
+        # o usuário completar nome/coluna, sem precisar adivinhar aqui.
+        return lojas_base.copy(), criar_produtos_padrao_eurocompany()
 
     return lojas_base.copy(), produtos_base.copy()
 

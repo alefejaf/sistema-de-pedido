@@ -27,8 +27,7 @@ def exibir_tela_inicial():
     st.caption("Escolha o cliente para abrir uma página isolada com PDF, DE/PARA e configuração própria.")
 
     st.markdown("## Escolha o cliente")
-    c1, c2, c3, c4 = st.columns(4)
-    colunas = [c1, c2, c3, c4]
+    colunas = st.columns(len(CLIENTES))
     for col, (cliente_id, cfg) in zip(colunas, CLIENTES.items()):
         with col:
             with st.container(border=True):
@@ -48,5 +47,5 @@ def exibir_tela_inicial():
     st.write(
         "Cada cliente roda separado: upload do PDF, configuração DE/PARA, ordem de lojas, "
         "produtos e downloads ficam direcionados para o cliente escolhido. Isso evita misturar "
-        "configuração de Ultrabox, Bigbox, Costa e Fort."
+        "configuração de Ultrabox, Bigbox, Costa, Fort e Euro Company."
     )
