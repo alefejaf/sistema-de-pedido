@@ -1,44 +1,197 @@
 name: Publicar imagem Docker e Deploy TrueNAS
 
+# PUBLICACAO CONTROLADA DA PRODUCAO.
+#
+# Fluxo (cada etapa só começa se a anterior passar):
+#   1. guarda   - recusa tudo que não for a branch master (inclusive workflow_dispatch
+#                 em outra branch). Não usa permissões nem secrets.
+#   2. testes   - reexecuta a suíte e o build Docker (ci.yml) no commit EXATO da master.
+#   3. publicar - AGUARDA APROVAÇÃO do GitHub Environment "production" e só então:
+#                 confere que o commit ainda é o topo da master, publica a imagem no GHCR
+#                 (tags :<sha> e :latest) e pede ao TrueNAS que baixe a imagem.
+#
+# Secrets (TAILSCALE_AUTHKEY, TRUENAS_SSH_KEY) são referenciados SOMENTE no job
+# "publicar", ou seja, só existem depois da aprovação.
+#
+# Para voltar a uma versão anterior use rollback-producao.yml (não reconstrói nada).
 on:
   push:
     branches:
       - master
   workflow_dispatch:
 
+# Padrão do workflow inteiro: somente leitura. Escrita em pacotes só no job "publicar".
 permissions:
   contents: read
-  packages: write
+
+# Um único deploy de produção por vez (compartilhado com rollback-producao.yml).
+# Não cancela uma publicação em andamento; execuções novas ficam na fila.
+concurrency:
+  group: producao-sistema-de-pedido
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/alefejaf/sistema-de-pedido
 
 jobs:
-  docker:
+  guarda:
+    name: Guarda (somente master)
     runs-on: ubuntu-latest
-
+    timeout-minutes: 5
+    permissions: {}
     steps:
-      - name: Checkout do repositorio
-        uses: actions/checkout@v4
+      - name: Exigir repositorio e branch master
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [ "$REPO" != "alefejaf/sistema-de-pedido" ]; then
+            echo "::error::Repositorio inesperado: $REPO. Publicacao bloqueada."
+            exit 1
+          fi
+          if [ "$REF" != "refs/heads/master" ]; then
+            echo "::error::BLOQUEADO: a publicacao so e permitida a partir da branch master (ref atual: $REF, evento: $EVENT)."
+            exit 1
+          fi
+          case "$EVENT" in
+            push|workflow_dispatch) ;;
+            *) echo "::error::Evento nao permitido para publicacao: $EVENT"; exit 1 ;;
+          esac
+          echo "OK: $EVENT em $REF"
+
+  testes:
+    name: Testes obrigatorios (ci.yml)
+    needs: guarda
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  publicar:
+    name: Publicar imagem e implantar (requer aprovacao)
+    needs: [guarda, testes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # O job fica PAUSADO aqui até um revisor aprovar no GitHub (Environment "production").
+    environment:
+      name: production
+      url: https://github.com/alefejaf/sistema-de-pedido/pkgs/container/sistema-de-pedido
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TRUENAS_HOST: "100.74.190.91"
+      TRUENAS_USER: truenas_admin
+      TRUENAS_APP: sistema-de-pedido
+    steps:
+      - name: Checkout do commit publicado
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      # Evita que uma aprovação tardia implante código velho: se a master andou
+      # depois deste run entrar na fila, aborta (o run mais novo cuida dela).
+      - name: Confirmar que este commit ainda e o topo da master
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          topo="$(gh api "repos/${REPO}/branches/master" --jq .commit.sha)"
+          if [ "$topo" != "$SHA" ]; then
+            echo "::error::A master avancou (topo atual: $topo; este run: $SHA). Publicacao abortada; aprove o run mais recente."
+            exit 1
+          fi
+          echo "OK: $SHA e o topo da master"
+
+      # FALHA SEGURA: o GITHUB_TOKEN não consegue consultar se o Environment está protegido.
+      # Se "production" não existir, o GitHub o cria SEM proteção e SEM secrets. Se os
+      # secrets de produção ficarem SÓ no environment (recomendado), um environment
+      # criado por acidente vem sem eles e este passo aborta ANTES de publicar a imagem.
+      - name: Verificar credenciais de producao (antes de publicar)
+        shell: bash
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+          TRUENAS_SSH_KEY: ${{ secrets.TRUENAS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          faltando=0
+          [ -n "${TAILSCALE_AUTHKEY:-}" ] || { echo "::error::TAILSCALE_AUTHKEY ausente neste environment."; faltando=1; }
+          [ -n "${TRUENAS_SSH_KEY:-}" ] || { echo "::error::TRUENAS_SSH_KEY ausente neste environment."; faltando=1; }
+          if [ "$faltando" -ne 0 ]; then
+            echo "::error::Nada foi publicado. Confirme que o Environment 'production' existe, esta protegido e contem os secrets."
+            exit 1
+          fi
+          echo "OK: credenciais presentes (valores nao exibidos)"
 
       - name: Login no GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ github.token }}
 
       - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # Guarda o digest do :latest atual ANTES de substituí-lo (ponto de rollback).
+      - name: Registrar versao anterior do :latest
+        shell: bash
+        run: |
+          set -euo pipefail
+          anterior="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          echo "ANTERIOR_DIGEST=${anterior:-nao-encontrado}" >> "$GITHUB_ENV"
+          echo "latest anterior: ${anterior:-nao-encontrado}"
 
       - name: Build e Push
-        uses: docker/build-push-action@v6
+        id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: true
           tags: |
-            ghcr.io/alefejaf/sistema-de-pedido:latest
-            ghcr.io/alefejaf/sistema-de-pedido:${{ github.sha }}
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Registrar publicacao (resumo do run)
+        shell: bash
+        env:
+          SHA: ${{ github.sha }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          ATOR: ${{ github.actor }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Imagem publicada"
+            echo
+            echo "| Item | Valor |"
+            echo "|---|---|"
+            echo "| Commit | \`${SHA}\` |"
+            echo "| Imagem (imutavel) | \`${IMAGE}:${SHA}\` |"
+            echo "| Digest | \`${DIGEST}\` |"
+            echo "| Referencia imutavel | \`${IMAGE}@${DIGEST}\` |"
+            echo "| \`:latest\` anterior (digest) | \`${ANTERIOR_DIGEST}\` |"
+            echo "| Aprovado/executado por | ${ATOR} |"
+            echo "| Run | ${RUN_URL} |"
+            echo
+            echo "**Rollback:** rode o workflow *Rollback da producao* informando o SHA completo de uma versao anterior."
+            echo
+            echo "> **Atencao:** este fluxo publica e pede ao TrueNAS \`app.pull_images\`. Isso NAO prova que o container em execucao usa este digest."
+            echo "> Confirme no TrueNAS a imagem realmente em uso (ver docs/PROTECOES_E_PUBLICACAO.md, secao 6)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice::Publicado ${IMAGE}:${SHA} (${DIGEST})"
 
       - name: Instalar Tailscale
-        uses: tailscale/github-action@v4
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
         with:
           authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
           ping: 100.74.190.91
@@ -55,8 +208,12 @@ jobs:
       - name: Deploy no TrueNAS
         shell: bash
         run: |
-          ssh -o StrictHostKeyChecking=no \
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=20 \
               -i ~/.ssh/truenas_key \
-              truenas_admin@100.74.190.91 \
-              "sudo -n /usr/bin/midclt call app.pull_images sistema-de-pedido"
+              "${TRUENAS_USER}@${TRUENAS_HOST}" \
+              "sudo -n /usr/bin/midclt call app.pull_images ${TRUENAS_APP}"
 
+      - name: Remover chave SSH do runner
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/truenas_key

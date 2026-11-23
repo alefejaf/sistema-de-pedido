@@ -1,0 +1,17 @@
+{
+  "name": "Proteger desenvolvimento (contra exclusao e force push)",
+  "target": "branch",
+  "source_type": "Repository",
+  "enforcement": "disabled",
+  "conditions": {
+    "ref_name": {
+      "include": ["refs/heads/desenvolvimento"],
+      "exclude": []
+    }
+  },
+  "bypass_actors": [],
+  "rules": [
+    { "type": "deletion" },
+    { "type": "non_fast_forward" }
+  ]
+}

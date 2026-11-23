@@ -28,6 +28,9 @@ __pycache__/
 .streamlit/cache/
 .pytest_cache/
 
+# Exceção ao "*.json" acima: modelos de ruleset do GitHub (não contêm dados sensíveis)
+!docs/github/*.json
+
 # Artefatos de testes/cobertura (gerados localmente e pelo CI)
 .coverage
 .coverage.*

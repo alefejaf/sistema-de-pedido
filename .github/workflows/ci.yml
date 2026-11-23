@@ -5,12 +5,15 @@ name: CI (testes e validação do build)
 # exclusivamente no workflow docker-publish.yml (que roda em push na master).
 #
 # Roda em todo Pull Request, em push na branch de desenvolvimento e sob demanda.
+# Também é CHAMADO (workflow_call) pelo docker-publish.yml, que reexecuta estes
+# mesmos testes no commit exato da master antes de pedir aprovação de publicação.
 on:
   pull_request:
   push:
     branches:
       - desenvolvimento
   workflow_dispatch:
+  workflow_call:
 
 # Somente leitura do código. Sem packages:write, sem id-token, sem nada além disso.
 permissions:
@@ -30,11 +33,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout do repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       # 3.11 = mesma versão do Python da imagem Docker (python:3.11-slim).
       - name: Configurar Python 3.11
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: pip
@@ -59,7 +62,7 @@ jobs:
 
       - name: Guardar relatorios (cobertura e resultado)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: relatorios-de-teste
           path: |
@@ -73,15 +76,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout do repositorio
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
 
       # push: false + load: true => a imagem fica só no runner e é descartada.
       # Nenhum login em registry, nenhuma tag ghcr.io.
       - name: Build da imagem (somente local)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           push: false
@@ -105,7 +108,7 @@ jobs:
       - name: Smoke test 2 - healthcheck do Streamlit no container
         run: |
           docker run -d --name app-ci -p 8501:8501 sistema-pedido:ci
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://localhost:8501/_stcore/health; then echo; echo "saudavel"; exit 0; fi
             sleep 2
           done

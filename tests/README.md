@@ -33,6 +33,7 @@ pytest tests/test_parsing_layouts.py -v  # um arquivo
 | `test_pendencias_e_admin_ui.py` | aba Pendências e painel admin (ativar/desativar, redefinir senha) |
 | `test_clientes_suportados.py` | os 5 clientes (Ultrabox, Bigbox, Costa, Fort, Euro Company) ponta a ponta |
 | `test_guardas_do_repositorio.py` | repositório público: sem PDF/segredo/chave; `ci.yml` não publica nem usa secrets |
+| `test_workflows_publicacao.py` | workflows de publicação/rollback (guarda, aprovação, permissões, secrets, SHA pinning, concorrência), execução real das guardas e modelos de ruleset |
 
 Apoio: `synth.py` (gerador de pedidos sintéticos e PDF), `helpers.py` (pipeline
 completo), `xlsx_eval.py` (recalcula `SUM`/`COUNTIF`/`SUMPRODUCT`, já que o

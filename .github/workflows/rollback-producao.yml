@@ -1,0 +1,223 @@
+name: Rollback da producao
+
+# ROLLBACK CONTROLADO: reaponta o :latest para uma imagem JA PUBLICADA (tag :<sha>)
+# e pede ao TrueNAS que baixe a imagem. NÃO reconstrói nada, NÃO altera código,
+# configs/ nem backups_config/ (dados persistentes ficam nos volumes do TrueNAS).
+#
+# Só pode ser disparado manualmente, na branch master, e passa por:
+#   1. guarda            - branch master + SHA com 40 hex + confirmação "ROLLBACK"
+#   2. verificar-imagem  - confirma que a imagem existe no GHCR e fixa o DIGEST
+#                          (sem secrets; o revisor vê o digest antes de aprovar)
+#   3. rollback          - AGUARDA APROVAÇÃO do Environment "production"; reaponta
+#                          :latest para o DIGEST (imutável) e dispara o pull no TrueNAS
+#
+# Compartilha o grupo de concorrência com docker-publish.yml: nunca há dois
+# deploys de produção ao mesmo tempo.
+on:
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "SHA COMPLETO (40 caracteres) de um commit ja publicado no GHCR"
+        required: true
+        type: string
+      confirmacao:
+        description: "Digite ROLLBACK (em maiusculas) para confirmar"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: producao-sistema-de-pedido
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/alefejaf/sistema-de-pedido
+
+jobs:
+  guarda:
+    name: Guarda (master, SHA valido, confirmacao)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Validar branch e entradas
+        shell: bash
+        env:
+          REPO: ${{ github.repository }}
+          REF: ${{ github.ref }}
+          SHA_ALVO: ${{ inputs.sha }}
+          CONFIRMACAO: ${{ inputs.confirmacao }}
+        run: |
+          set -euo pipefail
+          if [ "$REPO" != "alefejaf/sistema-de-pedido" ]; then
+            echo "::error::Repositorio inesperado: $REPO."
+            exit 1
+          fi
+          if [ "$REF" != "refs/heads/master" ]; then
+            echo "::error::BLOQUEADO: rollback so pode ser executado a partir da branch master (ref atual: $REF)."
+            exit 1
+          fi
+          if ! printf '%s' "$SHA_ALVO" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "::error::SHA invalido. Informe o SHA completo (40 caracteres hexadecimais minusculos)."
+            exit 1
+          fi
+          if [ "$CONFIRMACAO" != "ROLLBACK" ]; then
+            echo "::error::Confirmacao invalida. Digite exatamente: ROLLBACK"
+            exit 1
+          fi
+          echo "OK: rollback solicitado para $SHA_ALVO"
+
+  verificar-imagem:
+    name: Verificar imagem alvo no GHCR
+    needs: guarda
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      digest: ${{ steps.inspecionar.outputs.digest }}
+    steps:
+      - name: Login no GHCR (somente leitura)
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Confirmar que a imagem existe e obter o digest
+        id: inspecionar
+        shell: bash
+        env:
+          SHA_ALVO: ${{ inputs.sha }}
+        run: |
+          set -euo pipefail
+          if ! digest="$(docker buildx imagetools inspect "${IMAGE}:${SHA_ALVO}" --format '{{.Manifest.Digest}}')"; then
+            echo "::error::Imagem ${IMAGE}:${SHA_ALVO} nao encontrada no GHCR. Nada foi alterado."
+            exit 1
+          fi
+          atual="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          echo "digest=${digest}" >> "$GITHUB_OUTPUT"
+          {
+            echo "## Rollback solicitado"
+            echo
+            echo "| Item | Valor |"
+            echo "|---|---|"
+            echo "| Alvo | \`${IMAGE}:${SHA_ALVO}\` |"
+            echo "| Digest do alvo | \`${digest}\` |"
+            echo "| \`:latest\` atual | \`${atual:-nao-encontrado}\` |"
+            if [ "${atual:-}" = "${digest}" ]; then
+              echo
+              echo "> Atencao: o alvo JA e a versao atual do \`:latest\`."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  rollback:
+    name: Reapontar :latest e implantar (requer aprovacao)
+    needs: [guarda, verificar-imagem]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://github.com/alefejaf/sistema-de-pedido/pkgs/container/sistema-de-pedido
+    permissions:
+      contents: read
+      packages: write
+    env:
+      TRUENAS_HOST: "100.74.190.91"
+      TRUENAS_USER: truenas_admin
+      TRUENAS_APP: sistema-de-pedido
+    steps:
+      # FALHA SEGURA (ver docker-publish.yml): aborta antes de mexer no registro se o
+      # environment vier sem as credenciais de produção.
+      - name: Verificar credenciais de producao (antes de reapontar)
+        shell: bash
+        env:
+          TAILSCALE_AUTHKEY: ${{ secrets.TAILSCALE_AUTHKEY }}
+          TRUENAS_SSH_KEY: ${{ secrets.TRUENAS_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          faltando=0
+          [ -n "${TAILSCALE_AUTHKEY:-}" ] || { echo "::error::TAILSCALE_AUTHKEY ausente neste environment."; faltando=1; }
+          [ -n "${TRUENAS_SSH_KEY:-}" ] || { echo "::error::TRUENAS_SSH_KEY ausente neste environment."; faltando=1; }
+          if [ "$faltando" -ne 0 ]; then
+            echo "::error::Nada foi alterado. Confirme que o Environment 'production' existe, esta protegido e contem os secrets."
+            exit 1
+          fi
+          echo "OK: credenciais presentes (valores nao exibidos)"
+
+      - name: Login no GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      # Reaponta por DIGEST (imutável), não por tag: mesmo que a tag mude entre a
+      # verificação e a aprovação, o que vai para :latest é exatamente o que foi mostrado.
+      - name: Reapontar :latest para o digest verificado
+        shell: bash
+        env:
+          DIGEST: ${{ needs.verificar-imagem.outputs.digest }}
+          SHA_ALVO: ${{ inputs.sha }}
+          ATOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          case "$DIGEST" in sha256:*) ;; *) echo "::error::Digest invalido: $DIGEST"; exit 1 ;; esac
+          anterior="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          docker buildx imagetools create --tag "${IMAGE}:latest" "${IMAGE}@${DIGEST}"
+          novo="$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}')"
+          if [ "$novo" != "$DIGEST" ]; then
+            echo "::error::Apos o retag, :latest ($novo) difere do digest alvo ($DIGEST)."
+            exit 1
+          fi
+          {
+            echo "## Rollback aplicado"
+            echo
+            echo "| Item | Valor |"
+            echo "|---|---|"
+            echo "| \`:latest\` agora | \`${novo}\` (= \`${IMAGE}:${SHA_ALVO}\`) |"
+            echo "| \`:latest\` anterior | \`${anterior:-nao-encontrado}\` |"
+            echo "| Referencia imutavel do alvo | \`${IMAGE}@${DIGEST}\` |"
+            echo "| Executado por | ${ATOR} |"
+            echo
+            echo "> **Atencao:** reapontar a tag \`:latest\` no GHCR NAO garante que o TrueNAS passara a executar a imagem anterior."
+            echo "> O app pode estar fixado em outra tag/digest, o \`app.pull_images\` pode nao recriar o container, ou o host pode manter a imagem em cache."
+            echo "> Confirme no TrueNAS o digest da imagem EM EXECUCAO e compare com o digest acima (docs/PROTECOES_E_PUBLICACAO.md, secao 6)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Instalar Tailscale
+        uses: tailscale/github-action@064b10558093f38325e838ddea35486bdc6b1d5c # v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          ping: 100.74.190.91
+
+      - name: Configurar chave SSH
+        shell: bash
+        env:
+          TRUENAS_SSH_KEY: ${{ secrets.TRUENAS_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$TRUENAS_SSH_KEY" > ~/.ssh/truenas_key
+          chmod 600 ~/.ssh/truenas_key
+
+      - name: Deploy no TrueNAS
+        shell: bash
+        run: |
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes -o ConnectTimeout=20 \
+              -i ~/.ssh/truenas_key \
+              "${TRUENAS_USER}@${TRUENAS_HOST}" \
+              "sudo -n /usr/bin/midclt call app.pull_images ${TRUENAS_APP}"
+
+      - name: Remover chave SSH do runner
+        if: always()
+        shell: bash
+        run: rm -f ~/.ssh/truenas_key
