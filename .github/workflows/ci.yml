@@ -1,0 +1,120 @@
+name: CI (testes e validação do build)
+
+# Este workflow SÓ valida. Ele NÃO publica imagem, NÃO faz login em registry,
+# NÃO usa nenhum secret e NÃO toca no TrueNAS. A publicação/deploy continuam
+# exclusivamente no workflow docker-publish.yml (que roda em push na master).
+#
+# Roda em todo Pull Request, em push na branch de desenvolvimento e sob demanda.
+on:
+  pull_request:
+  push:
+    branches:
+      - desenvolvimento
+  workflow_dispatch:
+
+# Somente leitura do código. Sem packages:write, sem id-token, sem nada além disso.
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+
+jobs:
+  testes:
+    name: Testes automatizados (pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout do repositorio
+        uses: actions/checkout@v4
+
+      # 3.11 = mesma versão do Python da imagem Docker (python:3.11-slim).
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Versoes instaladas (diagnostico)
+        run: python -m pip list --format=freeze | grep -i -E "^(streamlit|pandas|pymupdf|pdfplumber|openpyxl|xlsxwriter|rapidfuzz|gspread|pytest)=="
+
+      - name: Rodar testes com cobertura
+        run: >
+          python -m pytest
+          --cov --cov-fail-under=85 --cov-report=term-missing --cov-report=xml:coverage.xml
+          --junitxml=resultado-testes.xml
+          -p no:cacheprovider
+
+      - name: Guardar relatorios (cobertura e resultado)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorios-de-teste
+          path: |
+            coverage.xml
+            resultado-testes.xml
+          retention-days: 14
+
+  docker-build:
+    name: Validar build da imagem Docker (sem publicar)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout do repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # push: false + load: true => a imagem fica só no runner e é descartada.
+      # Nenhum login em registry, nenhuma tag ghcr.io.
+      - name: Build da imagem (somente local)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: sistema-pedido:ci
+
+      - name: Smoke test 1 - importar o app dentro da imagem, sem rede e sem secrets
+        run: |
+          docker run --rm -i --network none --entrypoint python sistema-pedido:ci - <<'PY'
+          from streamlit.testing.v1 import AppTest
+          at = AppTest.from_file("app.py", default_timeout=60).run()
+          assert not at.exception, at.exception
+          # sem secrets e sem Sheets o app deve BLOQUEAR o acesso (nunca liberar).
+          assert any("nenhuma conta master" in e.value for e in at.error), [e.value for e in at.error]
+          assert len(at.text_input) == 0
+          import grade_app.config as c
+          assert sorted(c.CLIENTES) == ["bigbox", "costa", "eurocompany", "fort", "ultrabox"]
+          print("OK: app importa e bloqueia acesso sem credenciais")
+          PY
+
+      - name: Smoke test 2 - healthcheck do Streamlit no container
+        run: |
+          docker run -d --name app-ci -p 8501:8501 sistema-pedido:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8501/_stcore/health; then echo; echo "saudavel"; exit 0; fi
+            sleep 2
+          done
+          echo "container nao ficou saudavel"; docker logs app-ci; exit 1
+
+      - name: Logs do container (se falhou)
+        if: failure()
+        run: docker logs app-ci || true
+
+      - name: Limpar
+        if: always()
+        run: docker rm -f app-ci || true

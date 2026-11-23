@@ -1,0 +1,6 @@
+# Dependências SÓ para desenvolvimento/testes/CI. Não vão para a imagem Docker
+# (o Dockerfile instala apenas requirements.txt) e não afetam produção.
+-r requirements.txt
+pytest>=8.0
+pytest-cov>=5.0
+PyYAML>=6.0

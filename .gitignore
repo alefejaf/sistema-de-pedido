@@ -28,6 +28,13 @@ __pycache__/
 .streamlit/cache/
 .pytest_cache/
 
+# Artefatos de testes/cobertura (gerados localmente e pelo CI)
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+resultado-testes.xml
+
 # IDE
 .vscode/
 .idea/
